@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>Herman's Day 💖</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    
+    <!-- Carga la librería de Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
+    
+    <!-- Carga Tailwind CSS para estilos estéticos y responsivos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Carga Font Awesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Inter', sans-serif; 
+            font-size: 16px; 
+            color: #333; 
+            background-color: #f1f1f1;
+        }
+
+        #map-container {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        #controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+            z-index: 10;
+            max-width: 20rem;
+            max-height: 90vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(0);
+        }
+
+        /* Estilos específicos para el panel de control en móviles */
+        @media (max-width: 600px) {
+            #controls {
+                position: fixed;
+                top: 0;
+                right: 0;
+                width: 100%;
+                height: 100%;
+                max-width: 100%;
+                border-radius: 0;
+                transform: translateX(100%);
+            }
+            #controls.open {
+                transform: translateX(0);
+            }
+        }
+        
+        .mapboxgl-popup {
+            max-width: 200px;
+            font-family: 'Inter', sans-serif;
+        }
+        .mapboxgl-popup-content {
+            padding: 10px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .marker {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 5;
+        }
+        
+        .marker-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 2px solid #3b82f6;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .marker-icon.visited {
+            border-color: #4caf50;
+            background-color: #e8f5e9;
+        }
+
+        .marker-icon img {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 2px;
+        }
+        
+        .marker-label {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            margin-top: 0.25rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #toggle-controls {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 100;
+            width: 3rem;
+            height: 3rem;
+            background-color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 600px) {
+            #toggle-controls {
+                display: flex;
+            }
+        }
+
+        #legend-list li {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #legend-list li:hover {
+            background-color: #f3f4f6;
+        }
+
+        .mapboxgl-popup {
+            min-width: 15rem;
+        }
+
+        /* Estilos del modal para la imagen */
+        #image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        #image-modal.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: #fff;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+            max-width: 90%;
+            max-height: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .modal-content img {
+            max-width: 100%;
+            max-height: 70vh;
+            border-radius: 0.5rem;
+            object-fit: contain;
+        }
+        
+        .modal-content h3 {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .close-modal-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 2rem;
+            color: #888;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map-container">
+    <div id="map"></div>
+</div>
+
+<div id="toggle-controls" class="shadow-lg text-gray-800">
+    ☰
+</div>
+
+<div id="controls" class="flex flex-col space-y-4">
+    <button id="close-controls" class="md:hidden self-end text-xl text-gray-500 hover:text-gray-800 focus:outline-none">
+        <i class="fas fa-times"></i>
+    </button>
+    <h1 class="text-3xl font-bold mb-4 text-center text-gray-800">Herman's Day 💖</h1>
+
+    <div class="space-y-2">
+        <label for="start-select" class="block text-gray-700 font-medium">Origen:</label>
+        <select id="start-select" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+    </div>
+
+    <div class="space-y-2">
+        <label for="end-select" class="block text-gray-700 font-medium">Destino:</label>
+        <select id="end-select" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+    </div>
+    
+    <div class="space-y-2">
+        <label for="profile-select" class="block text-gray-700 font-medium">Modo de Viaje:</label>
+        <div class="flex space-x-2">
+            <button data-profile="walking" class="route-button flex-1 p-2 rounded-md transition-colors duration-200 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <i class="fas fa-walking"></i> Caminando
+            </button>
+            <button data-profile="driving" class="route-button flex-1 p-2 rounded-md transition-colors duration-200 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <i class="fas fa-car"></i> Conduciendo
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-4 flex items-center space-x-2">
+        <input type="checkbox" id="toggle-traffic" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500 transition duration-150 ease-in-out">
+        <label for="toggle-traffic" class="text-sm font-medium text-gray-700">Mostrar tráfico</label>
+    </div>
+
+    <button id="get-route-button" class="mt-4 w-full p-3 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        Calcular Ruta
+    </button>
+    
+    <button id="show-transit-button" class="mt-2 w-full p-3 rounded-md font-bold text-white bg-green-600 hover:bg-green-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500">
+        <i class="fas fa-bus"></i> Ver en Google Maps (Transporte Público)
+    </button>
+    
+    <div id="route-info" class="mt-4 p-4 text-sm bg-gray-100 rounded-md border border-gray-200 text-gray-700">
+        <p>Selecciona un origen y un destino para ver la ruta.</p>
+    </div>
+
+    <div id="route-instructions" class="mt-4 hidden">
+        <h3 class="text-xl font-bold mb-2 text-gray-800">Instrucciones Detalladas</h3>
+        <ol id="instructions-list" class="space-y-2 text-sm text-gray-700"></ol>
+    </div>
+
+    ---
+    <h2 class="text-2xl font-bold mt-6 mb-2 text-gray-800">Lugares de Herman</h2>
+    <ul id="legend-list-high-possibility" class="space-y-2"></ul>
+    
+    <h2 class="text-2xl font-bold mt-6 mb-2 text-gray-800">Baja posibilidad de ir</h2>
+    <ul id="legend-list-low-possibility" class="space-y-2"></ul>
+</div>
+
+<!-- Modal para ver la imagen -->
+<div id="image-modal">
+    <div class="modal-content">
+        <span class="close-modal-button">&times;</span>
+        <img id="modal-image" src="" alt="Lugar" />
+        <h3 id="modal-title" class="font-bold text-lg"></h3>
+    </div>
+</div>
+
+<script>
+    // Configuración de Mapbox
+    mapboxgl.accessToken = 'pk.eyJ1Ijoibm9taW1pYXUiLCJhIjoiY21mOGwyYWV4MG5sbzJxcTVlajdkM2s0cCJ9.Nbztxv_aHMa2NeLDmMv7rA';
+
+    // Puntos de interés con sus coordenadas, direcciones e imágenes
+    const places = [
+        { name: 'Casa en Granada 🏠', coords: [-70.686693, -33.368077], imageUrl: 'https://i.pinimg.com/736x/36/f1/9c/36f19c827dfd855d6018a3b22e5dfc3a.jpg', address: 'Granada 6055, Conchali', category: 'high' },
+        { name: 'Little Caesars 🍕', coords: [-70.66992, -33.3674], imageUrl: 'https://i.pinimg.com/736x/14/ec/ee/14eceeb2c8252f6d469370854cf8c535.jpg', address: 'Av. Pedro Fontova 6121, 8590483 Huechuraba, Región Metropolitana', category: 'high' },
+        { name: 'McDonald\'s 🍔', coords: [-70.67024, -33.3669], imageUrl: 'https://i.pinimg.com/736x/6f/f2/52/6ff25285aa40e3370e368e352d2bfa48.jpg', address: 'Av. Pedro Fontova 6121, 8600651 Santiago, Huechuraba, Región Metropolitana', category: 'high' },
+        { name: 'Niu sushi 🍣', coords: [-70.67024, -33.36595], imageUrl: 'https://i.pinimg.com/736x/5e/48/65/5e4865a00d98dd6400e47755fbe9d7ef.jpg', address: 'Av. Pedro Fontova 6251-6263, 8600578 Huechuraba, Región Metropolitana', category: 'high' },
+        { name: 'Cacao Much 🍫', coords: [-70.60633, -33.41955], imageUrl: 'https://i.pinimg.com/1200x/c0/00/52/c000525879d6f77af6350dacbabca203.jpg', address: 'Av. Providencia 2400, 7510034 Providencia, Región Metropolitana', category: 'high' },
+        { name: 'Dominó 🌭', coords: [-70.61079, -33.42333], imageUrl: 'https://i.pinimg.com/736x/27/e1/8a/27e18a622d0ce043c67703abccf3aee7.jpg', address: 'Av. Nueva Providencia 2098, 7510147 Providencia, Región Metropolitana', category: 'high' },
+        { name: 'Wally\'s - Burgers, Fries & Shakes 🍔', coords: [-70.62151, -33.42857], imageUrl: 'https://i.pinimg.com/1200x/ca/33/39/ca3339fb39e870713341785d2b5fa5bd.jpg', address: 'Pérez Valenzuela 1231, 7500572 Providencia, Región Metropolitana', category: 'high' },
+        { name: 'Krispy Kreme 🍩', coords: [-70.61588, -33.43911], imageUrl: 'https://i.pinimg.com/736x/f3/8c/77/f38c774555172de06c40abbda1ef7543.jpg', address: 'Manuel Montt 1221, 7501042 Providencia, Región Metropolitana', category: 'high' },
+        { name: 'Museo de Arte Precolombino 🏛️', coords: [-70.65239, -33.43866], imageUrl: 'https://i.pinimg.com/736x/c0/39/46/c039467bba2df039fcc026835af9b3cc.jpg', address: 'Bandera 361, 8320298 Santiago, Región Metropolitana', category: 'low' },
+        { name: 'Empanada mía 🥟', coords: [-70.63884, -33.41453], imageUrl: 'https://i.pinimg.com/736x/0d/26/22/0d26223173287f69ae63574d648f2a31.jpg', address: 'Av. Perú 1474, 8420103 Recoleta, Región Metropolitana', category: 'low' }
+    ];
+
+    // Inicialización del mapa
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: places.find(p => p.name === 'Casa en Granada 🏠').coords,
+        zoom: 13,
+        scrollZoom: true
+    });
+
+    let currentProfile = 'walking';
+
+    // Obtener referencias a elementos del DOM
+    const startSelect = document.getElementById('start-select');
+    const endSelect = document.getElementById('end-select');
+    const getRouteButton = document.getElementById('get-route-button');
+    const routeInfo = document.getElementById('route-info');
+    const showTransitButton = document.getElementById('show-transit-button');
+    const toggleButton = document.getElementById('toggle-controls');
+    const controlsContainer = document.getElementById('controls');
+    const closeControlsButton = document.getElementById('close-controls');
+    const toggleTrafficButton = document.getElementById('toggle-traffic');
+    const legendListHigh = document.getElementById('legend-list-high-possibility');
+    const legendListLow = document.getElementById('legend-list-low-possibility');
+    const imageModal = document.getElementById('image-modal');
+    const modalImage = document.getElementById('modal-image');
+    const modalTitle = document.getElementById('modal-title');
+    const closeModalButton = document.querySelector('.close-modal-button');
+    const routeInstructionsDiv = document.getElementById('route-instructions');
+    const instructionsList = document.getElementById('instructions-list');
+
+    // Función para agregar los marcadores fijos y la leyenda
+    function addFixedMarkersAndLegend() {
+        places.forEach(place => {
+            // Crear el elemento HTML del marcador
+            const el = document.createElement('div');
+            el.className = 'marker group';
+            el.setAttribute('data-name', place.name);
+            el.innerHTML = `
+                <div class="marker-icon">
+                    <img src="${place.imageUrl}" alt="${place.name}" onerror="this.onerror=null;this.src='https://placehold.co/40x40/FFFFFF/000000?text=?';">
+                </div>
+            `;
+            
+            // Si el lugar ha sido visitado, agregar la clase 'visited'
+            if (localStorage.getItem(place.name) === 'visited') {
+                el.querySelector('.marker-icon').classList.add('visited');
+            }
+
+            // Crear el popup del marcador
+            const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, closeOnClick: true })
+                .setHTML(`
+                    <h3 class="font-bold text-lg">${place.name}</h3>
+                    <p class="text-xs text-gray-500">${place.address}</p>
+                    <div class="flex flex-col space-y-2 mt-2">
+                        <button onclick="setPoint('start', '${place.name}')" class="px-2 py-1 bg-blue-500 text-white text-xs rounded-md shadow-md hover:bg-blue-600 transition-colors">Origen</button>
+                        <button onclick="setPoint('end', '${place.name}')" class="px-2 py-1 bg-green-500 text-white text-xs rounded-md shadow-md hover:bg-green-600 transition-colors">Destino</button>
+                        <button onclick="viewAddress('${encodeURIComponent(place.address)}')" class="px-2 py-1 bg-gray-500 text-white text-xs rounded-md shadow-md hover:bg-gray-600 transition-colors">Ver Dirección</button>
+                        <button onclick="markAsVisited(this, '${place.name}')" class="px-2 py-1 bg-purple-500 text-white text-xs rounded-md shadow-md hover:bg-purple-600 transition-colors">Marcar como Visitado</button>
+                        <button onclick="viewImage('${place.imageUrl}', '${place.name}')" class="px-2 py-1 bg-cyan-500 text-white text-xs rounded-md shadow-md hover:bg-cyan-600 transition-colors">Ver Imagen</button>
+                    </div>
+                `);
+
+            // Crear y agregar el marcador al mapa
+            new mapboxgl.Marker({
+                element: el,
+                anchor: 'bottom'
+            })
+                .setLngLat(place.coords)
+                .setPopup(popup)
+                .addTo(map);
+
+            // Leyenda en el panel de control
+            const legendItem = document.createElement('li');
+            legendItem.className = 'flex items-center space-x-2 p-2 rounded-md shadow-sm border border-gray-200';
+            legendItem.setAttribute('data-coords', JSON.stringify(place.coords));
+            legendItem.setAttribute('data-name', place.name);
+
+            // Verificar si el lugar ha sido visitado y aplicar el estilo
+            if (localStorage.getItem(place.name) === 'visited') {
+                legendItem.classList.add('bg-green-100');
+            }
+
+            legendItem.innerHTML = `
+                <img src="${place.imageUrl}" alt="${place.name}" class="w-10 h-10 rounded-full object-cover">
+                <span>${place.name}</span>
+            `;
+            
+            if (place.category === 'low') {
+                legendListLow.appendChild(legendItem);
+            } else {
+                legendListHigh.appendChild(legendItem);
+            }
+
+            legendItem.addEventListener('click', () => flyToLocation(place.coords));
+        });
+    }
+
+    // Funciones para los nuevos botones del popup
+    window.flyToLocation = function(coords) {
+        map.flyTo({
+            center: coords,
+            essential: true,
+            zoom: 15
+        });
+    }
+
+    window.viewAddress = function(address) {
+        const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
+        window.open(url, '_blank');
+    }
+
+    window.markAsVisited = function(button, name) {
+        const markerIcon = document.querySelector(`.marker[data-name='${name}'] .marker-icon`);
+        const legendItemHigh = document.querySelector(`#legend-list-high-possibility li[data-name="${name}"]`);
+        const legendItemLow = document.querySelector(`#legend-list-low-possibility li[data-name="${name}"]`);
+        
+        if (markerIcon) {
+            markerIcon.classList.add('visited');
+        }
+        if (legendItemHigh) {
+            legendItemHigh.classList.add('bg-green-100');
+        }
+        if (legendItemLow) {
+            legendItemLow.classList.add('bg-green-100');
+        }
+        localStorage.setItem(name, 'visited');
+        
+        // Cierra el popup
+        document.querySelector('.mapboxgl-popup-close-button')?.click();
+    }
+    
+    // Función para ver la imagen en el modal
+    window.viewImage = function(imageUrl, placeName) {
+        modalImage.src = imageUrl;
+        modalImage.alt = placeName;
+        modalTitle.textContent = placeName;
+        imageModal.classList.add('visible');
+        document.querySelector('.mapboxgl-popup-close-button')?.click();
+    };
+
+    closeModalButton.addEventListener('click', () => {
+        imageModal.classList.remove('visible');
+    });
+
+    // Función para poblar los selectores con los puntos de interés
+    function populateSelects() {
+        places.forEach(place => {
+            const optionStart = document.createElement('option');
+            optionStart.value = place.name;
+            optionStart.textContent = place.name;
+            startSelect.appendChild(optionStart);
+
+            const optionEnd = document.createElement('option');
+            optionEnd.value = place.name;
+            optionEnd.textContent = place.name;
+            endSelect.appendChild(optionEnd);
+        });
+        startSelect.value = 'Casa en Granada 🏠'; // Selecciona la casa como origen por defecto
+    }
+
+    // Función para establecer el punto de inicio o destino desde el popup
+    window.setPoint = function(type, name) {
+        if (type === 'start') {
+            startSelect.value = name;
+        } else {
+            endSelect.value = name;
+        }
+        document.querySelector('.mapboxgl-popup-close-button')?.click();
+    };
+
+    // Función para eliminar la ruta anterior
+    function removeRoute() {
+        if (map.getLayer('route')) {
+            map.removeLayer('route');
+        }
+        if (map.getSource('route')) {
+            map.removeSource('route');
+        }
+    }
+
+    // Función para obtener la ruta y dibujarla en el mapa
+    async function getRoute() {
+        const startName = startSelect.value;
+        const endName = endSelect.value;
+
+        if (!startName || !endName || startName === endName) {
+            routeInfo.innerHTML = '<p class="text-red-500">Por favor, selecciona un origen y un destino diferentes.</p>';
+            routeInstructionsDiv.classList.add('hidden');
+            return;
+        }
+        
+        const startPlace = places.find(p => p.name === startName);
+        const endPlace = places.find(p => p.name === endName);
+
+        if (!startPlace || !endPlace) {
+            routeInfo.innerHTML = '<p class="text-red-500">Error: No se encontraron los lugares seleccionados.</p>';
+            routeInstructionsDiv.classList.add('hidden');
+            return;
+        }
+
+        const startCoords = startPlace.coords;
+        const endCoords = endPlace.coords;
+        
+        const query = await fetch(
+            `https://api.mapbox.com/directions/v5/mapbox/${currentProfile}/${startCoords[0]},${startCoords[1]};${endCoords[0]},${endCoords[1]}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`,
+            { method: 'GET' }
+        );
+        const json = await query.json();
+        if (!json.routes || json.routes.length === 0) {
+            routeInfo.innerHTML = '<p class="text-red-500">No se pudo encontrar una ruta entre los puntos seleccionados.</p>';
+            routeInstructionsDiv.classList.add('hidden');
+            return;
+        }
+        const data = json.routes[0];
+        const route = data.geometry.coordinates;
+        const steps = data.legs[0].steps;
+
+        // Eliminar ruta anterior si existe
+        removeRoute();
+
+        // Agregar la nueva ruta
+        map.addSource('route', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'LineString',
+                    'coordinates': route
+                }
+            }
+        });
+        map.addLayer({
+            'id': 'route',
+            'type': 'line',
+            'source': 'route',
+            'layout': {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            'paint': {
+                'line-color': '#1a73e8',
+                'line-width': 6,
+                'line-opacity': 0.8
+            }
+        });
+        
+        // Ajustar la vista del mapa a la ruta
+        const bounds = new mapboxgl.LngLatBounds();
+        for (const coord of route) {
+            bounds.extend(coord);
+        }
+        map.fitBounds(bounds, {
+            padding: { top: 40, bottom: 40, left: 40, right: 40 }
+        });
+
+        // Mostrar información de la ruta
+        const distanceKm = (data.distance / 1000).toFixed(2);
+        const durationMin = Math.round(data.duration / 60);
+        routeInfo.innerHTML = `<p><strong>Distancia:</strong> ${distanceKm} km</p><p><strong>Duración estimada:</strong> ${durationMin} min</p>`;
+        
+        // Actualizar el botón de transporte público con las nuevas coordenadas
+        showTransitButton.dataset.startCoords = JSON.stringify(startCoords);
+        showTransitButton.dataset.endCoords = JSON.stringify(endCoords);
+
+        // Mostrar instrucciones detalladas
+        instructionsList.innerHTML = '';
+        routeInstructionsDiv.classList.remove('hidden');
+        steps.forEach(step => {
+            const instructionItem = document.createElement('li');
+            instructionItem.textContent = step.maneuver.instruction;
+            instructionsList.appendChild(instructionItem);
+        });
+
+        // Ocultar el panel de control en móvil después de calcular la ruta
+        if (window.innerWidth <= 600) {
+            controlsContainer.classList.remove('open');
+            toggleButton.textContent = '☰';
+        }
+    }
+
+    getRouteButton.addEventListener('click', getRoute);
+
+    // Manejar el clic en el botón de transporte público
+    showTransitButton.addEventListener('click', () => {
+        const startCoordsStr = showTransitButton.dataset.startCoords;
+        const endCoordsStr = showTransitButton.dataset.endCoords;
+
+        if (!startCoordsStr || !endCoordsStr) {
+            routeInfo.innerHTML = '<p class="text-red-500">Primero, calcula una ruta para ver el transporte público.</p>';
+            return;
+        }
+
+        const startCoords = JSON.parse(startCoordsStr);
+        const endCoords = JSON.parse(endCoordsStr);
+
+        const url = `https://www.google.com/maps/dir/?api=1&origin=${startCoords[1]},${startCoords[0]}&destination=${endCoords[1]},${endCoords[0]}&travelmode=transit`;
+        window.open(url, '_blank');
+        routeInfo.innerHTML = '<p class="text-blue-500">Abriendo Google Maps para mostrar las opciones de Metro y Micro.</p>';
+    });
+
+    // Manejar los botones de perfil de ruta
+    const routeButtons = document.querySelectorAll('.route-button');
+    routeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            routeButtons.forEach(btn => btn.classList.remove('bg-blue-600', 'text-white'));
+            button.classList.add('bg-blue-600', 'text-white');
+            currentProfile = button.dataset.profile;
+        });
+    });
+
+    // Marcar el botón de caminar como activo por defecto
+    document.querySelector('.route-button[data-profile="walking"]').classList.add('bg-blue-600', 'text-white');
+
+    // Lógica para abrir y cerrar el panel de control
+    toggleButton.addEventListener('click', () => {
+        controlsContainer.classList.toggle('open');
+        toggleButton.textContent = controlsContainer.classList.contains('open') ? 'x' : '☰';
+    });
+    
+    closeControlsButton.addEventListener('click', () => {
+        controlsContainer.classList.remove('open');
+        toggleButton.textContent = '☰';
+    });
+
+    // Lógica para el botón de tráfico
+    let trafficLayerActive = false;
+    toggleTrafficButton.addEventListener('change', (e) => {
+        trafficLayerActive = e.target.checked;
+        if (trafficLayerActive) {
+            map.addSource('traffic', {
+                type: 'vector',
+                url: 'mapbox://mapbox.mapbox-traffic-v1'
+            });
+
+            map.addLayer({
+                'id': 'traffic-layer',
+                'type': 'line',
+                'source': 'traffic',
+                'source-layer': 'traffic',
+                'paint': {
+                    'line-width': 2,
+                    'line-color': [
+                        'case',
+                        ['==', ['get', 'congestion'], 'low'], '#4caf50',
+                        ['==', ['get', 'congestion'], 'moderate'], '#ff9800',
+                        ['==', ['get', 'congestion'], 'heavy'], '#f44336',
+                        '#607d8b'
+                    ]
+                }
+            });
+        } else {
+            if (map.getLayer('traffic-layer')) {
+                map.removeLayer('traffic-layer');
+            }
+            if (map.getSource('traffic')) {
+                map.removeSource('traffic');
+            }
+        }
+    });
+
+    // Inicialización al cargar la página
+    map.on('load', () => {
+        addFixedMarkersAndLegend();
+        populateSelects();
+        // Lógica para el menú móvil al cargar
+        if (window.innerWidth <= 600) {
+            controlsContainer.classList.remove('open');
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (window.innerWidth <= 600) {
+            toggleButton.style.display = 'block';
+            if (!controlsContainer.classList.contains('open')) {
+                controlsContainer.style.transform = 'translateX(100%)';
+            }
+        } else {
+            toggleButton.style.display = 'none';
+            controlsContainer.style.transform = 'translateX(0)';
+        }
+    });
+</script>
+
+</body>
+</html>
